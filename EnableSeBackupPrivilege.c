@@ -2,7 +2,6 @@
 #include <windows.h>
 #include <tlhelp32.h>
 
-NTSTATUS Status; //to check how the API call went
 HANDLE hToken; //process token
 HANDLE hParentProcess; //handle to parent process
 DWORD dwParentPID; //PID of the parent process
@@ -15,12 +14,13 @@ BOOL SetPrivilege(
 	TOKEN_PRIVILEGES tp;
 	LUID luid;
 
+	printf("Enabling %s privilege... ",lpszPrivilege);
 	if (!LookupPrivilegeValue(
 		NULL,            // lookup privilege on local system
 		lpszPrivilege,   // privilege to lookup 
 		&luid))        // receives LUID of privilege
 	{
-		printf("LookupPrivilegeValue error: %u\n", GetLastError());
+		printf("ERROR - privilege lookup failed with code %d.\n", GetLastError());
 		return FALSE;
 	}
 
@@ -39,18 +39,20 @@ BOOL SetPrivilege(
 		(PTOKEN_PRIVILEGES)NULL,
 		(PDWORD)NULL))
 	{
-		printf("AdjustTokenPrivileges error: %u\n", GetLastError());
+		printf("ERROR - adjusting token failed with code %d.\n", GetLastError());
 		return FALSE;
 	}
 
 	if (GetLastError() == ERROR_NOT_ALL_ASSIGNED)
 	{
-		printf("The token does not have the specified privilege.\n");
+		printf("ERROR - privilege is not held by the parent.\n");
 		return FALSE;
 	}
 
+	printf("SUCCESS.\n");
 	return TRUE;
 }
+
 
 DWORD GetParentPID()
 {
@@ -80,24 +82,6 @@ DWORD GetParentPID()
 
 int main()
 {
-/*
-	//grab the current process token
-	if (!OpenProcessToken(
-		GetCurrentProcess(), 
-		TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-		&hToken))
-	{
-		printf("OpenProcessToken() for current process failed with code %d\n", GetLastError());
-		exit(-1);
-	}
-
-	//enable debug - required to open process not owned
-	if (!SetPrivilege(hToken, "SeDebugPrivilege", TRUE)) 
-	{
-		printf("Enabling SeDebugPrivilege failed.\n");
-		exit(-1);
-	}
-*/
 	//find the parent
 	dwParentPID = GetParentPID();
 	if (dwParentPID == -1)
@@ -128,19 +112,6 @@ int main()
 		exit(-1);
 	}
 
-	//enable SeBackup for parent
-	if (!SetPrivilege(hToken, "SeBackupPrivilege", TRUE))
-	{
-		printf("Enabling parent's SeBackupPrivilege failed.\n");
-		exit(-1);
-	}
-
-	//enable SeRestore for parent
-	if (!SetPrivilege(hToken, "SeRestorePrivilege", TRUE))
-	{
-		printf("Enabling parent's SeRestorePrivilege failed.\n");
-		exit(-1);
-	}
-
-	printf("Done.\n");
+	SetPrivilege(hToken, "SeBackupPrivilege", TRUE);
+	SetPrivilege(hToken, "SeRestorePrivilege", TRUE);
 }
